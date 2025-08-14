@@ -1,14 +1,12 @@
 import openmc
 import stellarmesh as sm
 
+mat = openmc.Material()
 n_volumes = 8
-
-water = openmc.Material()
-water.add_element('H', 2.0, percent_type='ao')
-water.add_element('O', 1.0, percent_type='ao')
-water.set_density('g/cm3', 0.99821)
-materials_list = [water.clone() for i in range(n_volumes)]
-material_names = [f"water_{i}" for i in range(n_volumes)]
+mat.add_element('Fe', 1.0, percent_type='ao')
+mat.set_density('g/cm3', 7.874)
+materials_list = [mat.clone() for i in range(n_volumes)]
+material_names = [f"iron_{i}" for i in range(n_volumes)]
 for mat, name in zip(materials_list, material_names):
     mat.name = name
 materials = openmc.Materials(materials_list)
@@ -37,9 +35,21 @@ tallies.append(flux_tally)
 
 settings = openmc.Settings()
 settings.source = source
-settings.batches = 10
-settings.particles = 5000
+settings.batches = 30
+settings.particles = 1000
 settings.run_mode = "fixed source"
+
+neutron_ww = openmc.WeightWindowGenerator(tally_mesh,
+                                          energy_bounds=[0.0, 0.1e6, 15e6],
+                                          particle_type='neutron',
+                                          method='magic',
+                                          max_realizations=settings.batches,
+                                          update_interval=1,
+                                          on_the_fly=True)
+settings.weight_window_checkpoints = {'collision': True, 'surface': True}
+settings.max_history_splits = 100
+settings.survival_biasing = False
+settings.weight_window_generators = [neutron_ww]
 
 model = openmc.Model(geometry, materials, settings, tallies)
 model.run()

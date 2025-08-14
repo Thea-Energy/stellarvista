@@ -9,6 +9,7 @@ import build123d as bd
 
 logger = logging.getLogger(__name__)
 
+
 def import_step(filename: str) -> pv.MultiBlock:
     """Imports a STEP file and converts it into a PyVista MultiBlock mesh.
 
@@ -230,7 +231,87 @@ def unstructured_mesh_tally_to_pv(statepoint_file: str, tally_name: str) -> pv.U
     return pv_mesh
 
 
-def weight_windows_to_pv():
+def load_wws_to_pv(filename: str) -> pv.MultiBlock:
+    """Loads weight window data from an OpenMC .h5 file and converts it into
+    PyVista MultiBlock datasets for visualization.
 
-    return
+    The function reads a 'weight_windows.h5' file, extracts the mesh
+    geometry and weight window bounds, and creates a MultiBlock dataset for
+    each set of weight windows found in the file. Each energy bin is
+    stored as a separate block within the MultiBlock, with both lower and
+    upper bounds assigned as cell data.
+
+    Args:
+        filename: The path to the 'weight_windows.h5' file.
+
+    Returns:
+        A pyvista MultiBlock where keys are a descriptive name for each set of
+        weight windows (e.g., "neutron_ww_1") and values are PyVista
+        MultiBlock objects. Each block within the MultiBlock represents
+        an energy bin and contains 'Lower WW Bounds' and
+        'Upper WW Bounds' as cell data.
+
+    Raises:
+        FileNotFoundError: If the specified file does not exist.
+        ValueError: If the file does not contain a supported mesh type.
+    """
+    try:
+        ww_list = openmc.hdf5_to_wws(filename)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Error: '{filename}' not found.")
+
+    if not ww_list:
+        logger.info(f"No weight windows found in '{filename}'.")
+        return
+
+    all_ww_multiblocks = {}
+
+    for ww in ww_list:
+        ww_name = f"{ww.particle_type}_ww_{ww.id}"
+        logger.info(f"Processing weight windows for: {ww_name}")
+        ww_multiblock = pv.MultiBlock()
+
+        for j in range(ww.num_energy_bins):
+            # Extract data for the current energy bin
+            # The data arrays are shaped (num_elements, num_energy_bins)
+            current_lower_bounds = ww.lower_ww_bounds[:,:,:,j]
+            current_upper_bounds = ww.upper_ww_bounds[:,:,:,j]
+
+            if isinstance(ww.mesh, openmc.RegularMesh):
+                # Create a PyVista StructuredGrid from the OpenMC RegularMesh
+        
+                pv_mesh = pv.StructuredGrid(
+                    ww.mesh.vertices[:, :, :, 0],
+                    ww.mesh.vertices[:, :, :, 1],
+                    ww.mesh.vertices[:, :, :, 2]
+                )
+
+                # Reshape and add the data
+                pv_mesh.cell_data["Lower WW Bounds"] = current_lower_bounds.flatten()
+                pv_mesh.cell_data["Upper WW Bounds"] = current_upper_bounds.flatten()
+
+            elif isinstance(ww.mesh, openmc.UnstructuredMesh):
+                # Create a PyVista UnstructuredGrid
+                pv_mesh = pv.read(ww.mesh.filename)
+                pv_mesh.cell_data["Lower WW Bounds"] = current_lower_bounds
+                pv_mesh.cell_data["Upper WW Bounds"] = current_upper_bounds
+
+            else:
+                logger.info(
+                    f"Skipping weight windows for an unsupported mesh type: "
+                    f"{type(ww.mesh).__name__}."
+                )
+                continue
+
+            # Add the energy bin as scalar field data
+            pv_mesh.add_field_data(ww.energy_bounds[j:j+2], "Energy Bin")
+            # Each mesh in the MultiBlock is named after the energy bin
+            ww_multiblock.append(pv_mesh, name=f"Energy Bin {j}")
+            # Add the completed MultiBlock to the main dictionary
+            all_ww_multiblocks[ww_name] = ww_multiblock
+
+    # combine all
+    pv_mesh = pv.MultiBlock(all_ww_multiblocks)
+
+    return pv_mesh
 
