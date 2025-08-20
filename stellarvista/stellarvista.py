@@ -42,7 +42,7 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
 
     Returns:
         A pyvista.MultiBlock object where each block represents a volume
-        and contains 'material_name' and 'volume_id' cell data.
+        and contains 'material_name' and 'DAGMC Volume ID' cell data.
     """
     # Load the h5m file with pydagmc
     try:
@@ -78,15 +78,12 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
 
         # Create the PyVista PolyData object for this volume
         if len(triangle_points) > 0 and len(faces) > 0:
-            mesh = pv.PolyData(triangle_points, faces)
-            
-            # Adding metadata as Cell Data
+            mesh = pv.PolyData(triangle_points, faces)            
             material_names.append(volume.material)
-
-            # Add the volume ID directly as cell data
+            # Add the volume ID
             logger.info(f"  -> Storing Volume ID: {vol_id}")
-            mesh.cell_data["DAGMC Volume ID"] = np.full(mesh.n_cells, vol_id)
-
+            # mesh.add_field_data(vol_id, "DAGMC Volume ID")
+            mesh.cell_data['DAGMC volume id'] = vol_id
             # Append the mesh for this volume to global list
             all_volume_meshes.append(mesh)
 
@@ -98,6 +95,7 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
     # Set each block name as the material name
     for i in range(len(all_volume_meshes)):
         multiblock_mesh.set_block_name(i, material_names[i])
+        all_volume_meshes[i].add_field_data(material_names[i], "material name")
 
     logger.info("\nSuccessfully created PyVista MultiBlock dataset from pydagmc model.")
 
@@ -105,19 +103,19 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
 
 
 def add_material_tally_data(
-    mesh: pv.MultiBlock, tally_df: pd.DataFrame
+    mesh: pv.MultiBlock, tally_df: pd.DataFrame, materials: openmc.Materials
 ) -> pv.MultiBlock:
     """Adds a MaterialFilter tally data to a PyVista MultiBlock mesh.
 
     This function assigns tally data from a pandas DataFrame to the
-    corresponding blocks in a PyVista MultiBlock mesh based on their
-    material ID.
+    corresponding blocks in a PyVista MultiBlock mesh based on the material name.
 
     Args:
         mesh: A pyvista.MultiBlock object, typically generated from a geometry
         conversion. Each block is expected to have a "material" data array.
         tally_df: A pandas DataFrame containing the tally data. It must have a
         "material" column for mapping.
+        materials: The OpenMC Materials used in the simulation
 
     Returns:
         The pyvista.MultiBlock with the newly assigned data arrays.
@@ -125,18 +123,25 @@ def add_material_tally_data(
     Raises:
         ValueError: If a block in the mesh does not have a "material" array.
     """
+    mat_ids = [mat.id for mat in materials]
+    mat_names = [mat.name for mat in materials]
+    mat_id_map = {n:id for (n,id) in zip(mat_names, mat_ids)}
+
+    # Check that the material IDs present in the dataframe are also in the materials
+    for id in tally_df['material']:
+        assert id in mat_ids
+
     for block in mesh:
-        # Check to see if material ids were assigned
-        if "material" not in block.array_names:
-            raise ValueError("'material' not assigned to pyvista data.")
         # Check if material id exists in tally data, if not we issue a warning and continue.
-        mat_id = int(block["material"][0])
+        mat_id = mat_id_map[block['material name']]
         if mat_id not in tally_df["material"].to_list():
             logger.info(
                 f"Material ID {mat_id} not present in tally dataframe.", UserWarning
             )
             continue
-        # Assign tally data mesh
+        # Iterate through the columns of the DataFrame and assign data to mesh.
+        # Float and Int results are added as cell_data, while strings
+        # are added as field_data.
         df_slice = tally_df.loc[tally_df["material"] == mat_id]
         for col in df_slice.columns.to_list():
             name = "".join(col)
@@ -145,8 +150,18 @@ def add_material_tally_data(
             if isinstance(data[0], str):
                 block.add_field_data(data[0], name)
             elif isinstance(data[0], float) or isinstance(data[0], int):
-                block.point_data[name] = data * block.n_points
+                block.cell_data[name] = data * block.n_cells
     return mesh
+
+
+def _openmc_regularmesh_to_pv_structured_grid(openmc_mesh: openmc.RegularMesh) -> pv.StructuredGrid:
+    # copy grid data directly
+    pv_mesh = pv.StructuredGrid(
+        openmc_mesh.vertices[:, :, :, 0],
+        openmc_mesh.vertices[:, :, :, 1],
+        openmc_mesh.vertices[:, :, :, 2],
+    )
+    return pv_mesh
 
 
 def regular_mesh_tally_to_pv(
@@ -155,20 +170,14 @@ def regular_mesh_tally_to_pv(
     """Converts OpenMC RegularMesh tally data to a PyVista StructuredGrid.
 
     Args:
-        openmc_mesh: An OpenMC RegularMesh used for the tally.
-        tally_df: A pandas DataFrame containing the tally data. Each column
-        represents a tally score and each row corresponds to a mesh cell.
+        openmc_mesh: An OpenMC RegularMesh used in the tally.
+        tally_df: A pandas DataFrame containing the tally data.
 
     Returns:
         A pyvista.StructuredGrid with corresponding tally data arrays in its
         `cell_data` attribute.
     """
-    # copy grid data directly
-    pv_mesh = pv.StructuredGrid(
-        openmc_mesh.vertices[:, :, :, 0],
-        openmc_mesh.vertices[:, :, :, 1],
-        openmc_mesh.vertices[:, :, :, 2],
-    )
+    pv_mesh = _openmc_regularmesh_to_pv_structured_grid(openmc_mesh)
     # transfer tally data to pyvista
     for col in tally_df.columns.to_list():
         name = "".join(col)
@@ -250,20 +259,8 @@ def load_wws_to_pv(filename: str) -> pv.MultiBlock:
         MultiBlock objects. Each block within the MultiBlock represents
         an energy bin and contains 'Lower WW Bounds' and
         'Upper WW Bounds' as cell data.
-
-    Raises:
-        FileNotFoundError: If the specified file does not exist.
-        ValueError: If the file does not contain a supported mesh type.
     """
-    try:
-        ww_list = openmc.hdf5_to_wws(filename)
-    except FileNotFoundError:
-        raise FileNotFoundError(f"Error: '{filename}' not found.")
-
-    if not ww_list:
-        logger.info(f"No weight windows found in '{filename}'.")
-        return
-
+    ww_list = openmc.hdf5_to_wws(filename)
     all_ww_multiblocks = {}
 
     for ww in ww_list:
@@ -279,22 +276,10 @@ def load_wws_to_pv(filename: str) -> pv.MultiBlock:
 
             if isinstance(ww.mesh, openmc.RegularMesh):
                 # Create a PyVista StructuredGrid from the OpenMC RegularMesh
-        
-                pv_mesh = pv.StructuredGrid(
-                    ww.mesh.vertices[:, :, :, 0],
-                    ww.mesh.vertices[:, :, :, 1],
-                    ww.mesh.vertices[:, :, :, 2]
-                )
-
+                pv_mesh = _openmc_regularmesh_to_pv_structured_grid(ww.mesh)
                 # Reshape and add the data
                 pv_mesh.cell_data["Lower WW Bounds"] = current_lower_bounds.flatten()
                 pv_mesh.cell_data["Upper WW Bounds"] = current_upper_bounds.flatten()
-
-            elif isinstance(ww.mesh, openmc.UnstructuredMesh):
-                # Create a PyVista UnstructuredGrid
-                pv_mesh = pv.read(ww.mesh.filename)
-                pv_mesh.cell_data["Lower WW Bounds"] = current_lower_bounds
-                pv_mesh.cell_data["Upper WW Bounds"] = current_upper_bounds
 
             else:
                 logger.info(
@@ -315,3 +300,97 @@ def load_wws_to_pv(filename: str) -> pv.MultiBlock:
 
     return pv_mesh
 
+
+def load_particle_tracks_to_pv(filename:str) -> pv.MultiBlock:
+    """Loads particle tracks from an OpenMC HDF5 file and converts them into
+    a PyVista MultiBlock dataset.
+
+    The function reads a 'tracks.h5' file, where each particle track is
+    represented by its states. It extracts the spatial points and
+    associated metadata for each track and creates a PyVista PolyData
+    object for each primary particle. These PolyData objects are then
+    aggregated into a single MultiBlock dataset. The MultiBlock's blocks
+    are named with the unique identifier of the primary particle.
+
+    The PolyData objects contain a continuous series of lines representing
+    the particle trajectories, with all metadata (energy, time, weight,
+    cell ID, cell instance, and material ID) stored as point data for
+    easy plotting and analysis.
+
+    Args:
+      filename: The path to the 'tracks.h5' file.
+
+    Returns:
+      A pyvista.MultiBlock object where each block represents a primary
+      particle's complete track (including all its secondary particle
+      histories). Each block is a `pyvista.PolyData` object. The `point_data`
+      for each `PolyData` object includes the following arrays:
+      - 'E': The energy of the particle at each state.
+      - 'time': The time of the particle at each state.
+      - 'wgt': The weight of the particle at each state.
+      - 'cell_id': The geometry cell ID at each state.
+      - 'cell_instance': The cell instance at each state.
+      - 'material_id': The material ID at each state.
+      - 'particle_type': A mapped integer for the particle's type, 
+                        {neutron: 0, photon: 1, electron: 2, positron: 3}.
+    """
+    tracks = openmc.Tracks(filename)
+    state_names =  ['E', 'time', 'wgt', 'cell_id', 'cell_instance', 'material_id']
+    particle_data = {'state_data': {state:[] for state in state_names},
+                    'current_point_count': 0,
+                    'points': [],
+                    'line_connectivity': [],
+                    'particle_types': [],}
+
+    multiblock = pv.MultiBlock()
+
+    for primary_particle in tracks:
+        for track in primary_particle.particle_tracks:
+            # Get the points for the current track
+            track_points_structured = track.states['r']
+            num_track_points = track_points_structured.shape[0]
+            
+            # Convert the structured array to a standard NumPy array for PyVista
+            track_points = np.empty((num_track_points, 3), dtype=np.float64)
+            track_points[:, 0] = track_points_structured['x']
+            track_points[:, 1] = track_points_structured['y']
+            track_points[:, 2] = track_points_structured['z']
+
+            # Append to the global list of points
+            particle_data['points'].append(track_points)
+            
+            # Build the line connectivity
+            particle_data['line_connectivity'].append(num_track_points)
+            particle_data['line_connectivity'].extend(range(particle_data['current_point_count'],
+                                                            particle_data['current_point_count']
+                                                            + num_track_points))
+            
+            # Store metadata for each point
+            particle_data['particle_types'].extend([track.particle] * num_track_points)
+            for s in state_names:
+                particle_data['state_data'][s].extend(track.states[s])
+            
+            particle_data['current_point_count'] += num_track_points
+
+        # Create the PyVista PolyData object from the points and lines
+        combined_points = np.vstack(particle_data['points'])
+        mesh = pv.PolyData(combined_points, lines=particle_data['line_connectivity'])
+
+        # Convert particle type strings to an integer array
+        unique_particle_types = list(set(particle_data['particle_types']))
+        particle_map = {name: i for i, name in enumerate(unique_particle_types)}
+        mapped_particle_types = np.array([particle_map[p] for p in particle_data['particle_types']])
+        mesh.point_data['particle_type'] = mapped_particle_types
+        # Add a field data array to store the mapping from integer to particle name
+        mesh.add_field_data(str(particle_map), "particle_type_map")
+
+        # Add scalar data to the mesh
+        for s in state_names:
+            mesh.point_data[s] = np.array(particle_data['state_data'][s])
+
+        multiblock.append(mesh)
+
+    for i in range(len(multiblock)):
+        multiblock.set_block_name(i, f"Track {tracks[i].identifier}")
+    
+    return multiblock
