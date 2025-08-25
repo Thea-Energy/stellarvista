@@ -164,7 +164,7 @@ def _openmc_regularmesh_to_pv_structured_grid(openmc_mesh: openmc.RegularMesh) -
     return pv_mesh
 
 
-def regular_mesh_tally_to_pv(
+def convert_regular_mesh_tally(
     openmc_mesh: openmc.RegularMesh, tally_df: pd.DataFrame
 ) -> pv.StructuredGrid:
     """Converts OpenMC RegularMesh tally data to a PyVista StructuredGrid.
@@ -174,7 +174,7 @@ def regular_mesh_tally_to_pv(
         tally_df: A pandas DataFrame containing the tally data.
 
     Returns:
-        A pyvista.StructuredGrid with corresponding tally data arrays in its
+        A pyvista.StructuredGrid with corresponding tally data stored in the
         `cell_data` attribute.
     """
     pv_mesh = _openmc_regularmesh_to_pv_structured_grid(openmc_mesh)
@@ -186,7 +186,7 @@ def regular_mesh_tally_to_pv(
     return pv_mesh
 
 
-def unstructured_mesh_tally_to_pv(statepoint_file: str, tally_name: str) -> pv.UnstructuredGrid:
+def convert_unstructured_mesh_tally(statepoint_file: str, tally_name: str) -> pv.UnstructuredGrid:
     """Loads unstructured mesh tally data and converts it to a PyVista UnstructuredGrid.
 
     This function reads an OpenMC statepoint file, extracts data for a
@@ -201,10 +201,6 @@ def unstructured_mesh_tally_to_pv(statepoint_file: str, tally_name: str) -> pv.U
     Returns:
         A pyvista.UnstructuredGrid object with the tally data. The data arrays
         are named in the format "{score} ({value_type})", e.g., "flux (mean)".
-    
-    Raises:
-        ValueError: If the specified tally is not found or is not an
-        unstructured mesh tally.
     """
     # Open the statepoint file
     sp = openmc.StatePoint(statepoint_file)
@@ -240,7 +236,7 @@ def unstructured_mesh_tally_to_pv(statepoint_file: str, tally_name: str) -> pv.U
     return pv_mesh
 
 
-def load_wws_to_pv(filename: str) -> pv.MultiBlock:
+def import_wws(filename: str) -> pv.MultiBlock:
     """Loads weight window data from an OpenMC .h5 file and converts it into
     PyVista MultiBlock datasets for visualization.
 
@@ -301,7 +297,7 @@ def load_wws_to_pv(filename: str) -> pv.MultiBlock:
     return pv_mesh
 
 
-def load_particle_tracks_to_pv(filename:str) -> pv.MultiBlock:
+def import_particle_tracks(filename:str) -> pv.MultiBlock:
     """Loads particle tracks from an OpenMC HDF5 file and converts them into
     a PyVista MultiBlock dataset.
 
