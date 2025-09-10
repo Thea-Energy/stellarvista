@@ -274,8 +274,8 @@ def import_wws(filename: str) -> pv.MultiBlock:
                 # Create a PyVista StructuredGrid from the OpenMC RegularMesh
                 pv_mesh = _openmc_regularmesh_to_pv_structured_grid(ww.mesh)
                 # Reshape and add the data
-                pv_mesh.cell_data["Lower WW Bounds"] = current_lower_bounds.flatten()
-                pv_mesh.cell_data["Upper WW Bounds"] = current_upper_bounds.flatten()
+                pv_mesh.cell_data["Lower WW Bounds"] = current_lower_bounds.flatten(order='F')
+                pv_mesh.cell_data["Upper WW Bounds"] = current_upper_bounds.flatten(order='F')
 
             else:
                 logger.info(
