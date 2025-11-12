@@ -12,7 +12,9 @@ A Python package for DAGMC model inspection, tally visualization, and more for O
     * Regular mesh
     * Material filter
 * Particle tracks
+* Lost Particles
 * Weight windows
+* Point Sources
  
 <p align="center">
 <img src="https://github.com/Thea-Energy/stellarvista/raw/main/doc/example_collage.png" width="100%">

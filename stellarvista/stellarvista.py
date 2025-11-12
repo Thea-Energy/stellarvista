@@ -9,6 +9,8 @@ import build123d as bd
 
 logger = logging.getLogger(__name__)
 
+pv.global_theme.allow_empty_mesh = True
+
 
 def import_step(filename: str) -> pv.MultiBlock:
     """Imports a STEP file and converts it into a PyVista MultiBlock mesh.
@@ -44,11 +46,7 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
         A pyvista.MultiBlock object where each block represents a volume
         and contains 'material_name' and 'DAGMC Volume ID' cell data.
     """
-    # Load the h5m file with pydagmc
-    try:
-        model = pydagmc.Model(filename)
-    except FileNotFoundError:
-        logger.info(f"Error: '{filename}' not found. Please provide a valid h5m file.")
+    model = pydagmc.Model(filename)
 
     all_volume_meshes = []
     material_names = []
@@ -80,13 +78,10 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
         if len(triangle_points) > 0 and len(faces) > 0:
             mesh = pv.PolyData(triangle_points, faces)            
             material_names.append(volume.material)
-            # Add the volume ID
             logger.info(f"  -> Storing Volume ID: {vol_id}")
             # mesh.add_field_data(vol_id, "DAGMC Volume ID")
             mesh.cell_data['DAGMC volume id'] = vol_id
-            # Append the mesh for this volume to global list
             all_volume_meshes.append(mesh)
-
         else:
             logger.info(f"  -> Volum ID: {vol_id}, has no triangles. Skipping.")
 
@@ -96,8 +91,6 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
     for i in range(len(all_volume_meshes)):
         multiblock_mesh.set_block_name(i, material_names[i])
         all_volume_meshes[i].add_field_data(material_names[i], "material name")
-
-    logger.info("\nSuccessfully created PyVista MultiBlock dataset from pydagmc model.")
 
     return multiblock_mesh
 
@@ -119,9 +112,6 @@ def add_material_tally_data(
 
     Returns:
         The pyvista.MultiBlock with the newly assigned data arrays.
-
-    Raises:
-        ValueError: If a block in the mesh does not have a "material" array.
     """
     mat_ids = [mat.id for mat in materials]
     mat_names = [mat.name for mat in materials]
@@ -174,11 +164,10 @@ def convert_regular_mesh_tally(
         tally_df: A pandas DataFrame containing the tally data.
 
     Returns:
-        A pyvista.StructuredGrid with corresponding tally data stored in the
-        `cell_data` attribute.
+        A pyvista.StructuredGrid with corresponding DataFrame columne data
+        stored as cell data.
     """
     pv_mesh = _openmc_regularmesh_to_pv_structured_grid(openmc_mesh)
-    # transfer tally data to pyvista
     for col in tally_df.columns.to_list():
         name = "".join(col)
         pv_mesh.cell_data[name] = tally_df[col]
@@ -186,7 +175,7 @@ def convert_regular_mesh_tally(
     return pv_mesh
 
 
-def convert_unstructured_mesh_tally(statepoint_file: str, tally_name: str) -> pv.UnstructuredGrid:
+def import_unstructured_mesh_tally(statepoint_file: str, tally_name: str) -> pv.UnstructuredGrid:
     """Loads unstructured mesh tally data and converts it to a PyVista UnstructuredGrid.
 
     This function reads an OpenMC statepoint file, extracts data for a
@@ -236,7 +225,7 @@ def convert_unstructured_mesh_tally(statepoint_file: str, tally_name: str) -> pv
     return pv_mesh
 
 
-def import_wws(filename: str) -> pv.MultiBlock:
+def import_weight_windows(filename: str) -> pv.MultiBlock:
     """Loads weight window data from an OpenMC .h5 file and converts it into
     PyVista MultiBlock datasets for visualization.
 
@@ -274,8 +263,8 @@ def import_wws(filename: str) -> pv.MultiBlock:
                 # Create a PyVista StructuredGrid from the OpenMC RegularMesh
                 pv_mesh = _openmc_regularmesh_to_pv_structured_grid(ww.mesh)
                 # Reshape and add the data
-                pv_mesh.cell_data["Lower WW Bounds"] = current_lower_bounds.flatten(order='F')
-                pv_mesh.cell_data["Upper WW Bounds"] = current_upper_bounds.flatten(order='F')
+                pv_mesh.cell_data["lower ww bounds"] = current_lower_bounds.flatten(order='F')
+                pv_mesh.cell_data["upper ww bounds"] = current_upper_bounds.flatten(order='F')
 
             else:
                 logger.info(
@@ -285,9 +274,9 @@ def import_wws(filename: str) -> pv.MultiBlock:
                 continue
 
             # Add the energy bin as scalar field data
-            pv_mesh.add_field_data(ww.energy_bounds[j:j+2], "Energy Bin")
+            pv_mesh.add_field_data(ww.energy_bounds[j:j+2], "energy bin")
             # Each mesh in the MultiBlock is named after the energy bin
-            ww_multiblock.append(pv_mesh, name=f"Energy Bin {j}")
+            ww_multiblock.append(pv_mesh, name=f"energy bin {j}")
             # Add the completed MultiBlock to the main dictionary
             all_ww_multiblocks[ww_name] = ww_multiblock
 
@@ -388,5 +377,67 @@ def import_particle_tracks(filename:str) -> pv.MultiBlock:
 
     for i in range(len(multiblock)):
         multiblock.set_block_name(i, f"Track {tracks[i].identifier}")
-    
+
     return multiblock
+
+
+def import_lost_particles(particle_files: list[str]):
+    """Loads a list of individual OpenMC particle files and converts their
+    spatial and scalar data into a single PyVista PolyData object.
+
+    This function is typically used for visualizing the state of
+    lost particles, where each file represents the state of
+    one particle at the moment it was terminated.
+
+    Args:
+      particle_files: A list of file paths, where each file is a particle
+        file generated by OpenMC (e.g., 'particle_1.h5').
+
+    Returns:
+      A pyvista.PolyData object containing the particle data as a set of
+      unconnected points. The object's `point_data` attribute includes:
+      - 'weight': The particle's weight at termination.
+      - 'energy': The particle's energy at termination.
+      - 'type': The particle type (e.g., neutron, photon).
+      - 'id': The unique ID of the particle.
+    """
+    particles = [openmc.Particle(f) for f in particle_files]
+    xyz = [p.xyz for p in particles]
+    mesh = pv.PolyData(xyz)
+    mesh.point_data['weight'] = [p.weight for p in particles]
+    mesh.point_data['energy'] = [p.energy for p in particles]
+    mesh.point_data['type'] = [p.type for p in particles]
+    mesh.point_data['id'] = [p.id for p in particles]
+
+    return mesh
+
+
+def convert_point_source(source: list[openmc.IndependentSource]) -> pv.PolyData:
+    """Extracts OpenMC Point source data and converts it into a PyVista PolyData object.
+
+    This function filters a list of OpenMC sources to select only those using 
+    a Point spatial distribution. It then creates a PyVista point cloud 
+    (PolyData) where each point represents a source location, with metadata 
+    such as source strength attached.
+
+    Args:
+      source: A list of openmc.IndependentSource objects.
+
+    Returns:
+      A pyvista.PolyData object containing the point source locations and 
+      associated data:
+      - 'strength': The source strength assigned to each point.
+
+    Raises:
+      ValueError: If no sources with an 'openmc.stats.Point' spatial 
+        distribution are found in the provided list.
+    """
+    point_sources  = np.array([s for s in source if isinstance(s.space, openmc.stats.Point)])
+    if len(point_sources) == 0:
+        raise ValueError("No point sources found in source.")
+    
+    points_xyz = np.array([s.space.xyz for s in point_sources])
+    point_cloud = pv.PolyData(points_xyz)
+    point_cloud['strength'] = [s.strength for s in point_sources]
+    
+    return point_cloud
