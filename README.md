@@ -1,4 +1,4 @@
-# StellarVista
+# Stellarvista
 A Python package for DAGMC model inspection, tally visualization, and more for OpenMC with Pyvista.
 
 <p align="center">
