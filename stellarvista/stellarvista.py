@@ -5,30 +5,10 @@ import pydagmc
 import numpy as np
 import pandas as pd
 import pyvista as pv
-import build123d as bd
 
 logger = logging.getLogger(__name__)
 
 pv.global_theme.allow_empty_mesh = True
-
-
-def import_step(filename: str) -> pv.MultiBlock:
-    """Imports a STEP file and converts it into a PyVista MultiBlock mesh.
-
-    Args:
-        filename: The path to the STEP file.
-
-    Returns:
-        A pyvista.MultiBlock object representing the geometry.
-    """
-    model = bd.import_step(filename)
-    children = model.children
-    mesh_list = []
-    for part in children:
-        mesh_list.append(pv.wrap(part.to_vtk_poly_data()))
-    mesh = pv.MultiBlock(mesh_list)
-
-    return mesh
 
 
 def import_dagmc(filename: str) -> pv.MultiBlock:

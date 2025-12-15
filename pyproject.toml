@@ -31,12 +31,11 @@ classifiers = [
 
 dependencies = [
     "pydagmc",
-    "pymoab",
     "pyvista[all]",
     "pandas",
     "numpy",
     "openmc",
-    "build123d",
+    "logging",
 ]
 
 [build-system]
