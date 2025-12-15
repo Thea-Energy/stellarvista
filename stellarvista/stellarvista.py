@@ -1,12 +1,9 @@
-import logging
 import openmc
 import pydagmc
 
 import numpy as np
 import pandas as pd
 import pyvista as pv
-
-logger = logging.getLogger(__name__)
 
 pv.global_theme.allow_empty_mesh = True
 
@@ -33,13 +30,10 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
 
     # Iterate through each volume in the pydagmc model
     volume_ids = model.volumes_by_id.keys()
-    logger.info(f"Found {len(volume_ids)} volumes in the model.")
 
     for vol_id in list(volume_ids):
         volume = model.volumes_by_id[vol_id]
 
-        logger.info(f"\nProcessing Volume ID: {vol_id}")
-        
         # Get the points and connectivity for the triangles in this volume
         triangle_connectivity, triangle_points = volume.get_triangle_conn_and_coords()
         
@@ -58,12 +52,12 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
         if len(triangle_points) > 0 and len(faces) > 0:
             mesh = pv.PolyData(triangle_points, faces)            
             material_names.append(volume.material)
-            logger.info(f"  -> Storing Volume ID: {vol_id}")
             # mesh.add_field_data(vol_id, "DAGMC Volume ID")
             mesh.cell_data['DAGMC volume id'] = vol_id
             all_volume_meshes.append(mesh)
         else:
-            logger.info(f"  -> Volum ID: {vol_id}, has no triangles. Skipping.")
+            msg = f"  -> Volum ID: {vol_id}, has no triangles. Skipping."
+            raise UserWarning(msg)
 
     # Create MultiBlock
     multiblock_mesh = pv.MultiBlock(all_volume_meshes)
@@ -105,10 +99,8 @@ def add_material_tally_data(
         # Check if material id exists in tally data, if not we issue a warning and continue.
         mat_id = mat_id_map[block['material name']]
         if mat_id not in tally_df["material"].to_list():
-            logger.info(
-                f"Material ID {mat_id} not present in tally dataframe.", UserWarning
-            )
-            continue
+            msg = f"Material ID {mat_id} not present in tally dataframe."
+            raise UserWarning(msg)
         # Iterate through the columns of the DataFrame and assign data to mesh.
         # Float and Int results are added as cell_data, while strings
         # are added as field_data.
@@ -230,7 +222,6 @@ def import_weight_windows(filename: str) -> pv.MultiBlock:
 
     for ww in ww_list:
         ww_name = f"{ww.particle_type}_ww_{ww.id}"
-        logger.info(f"Processing weight windows for: {ww_name}")
         ww_multiblock = pv.MultiBlock()
 
         for j in range(ww.num_energy_bins):
@@ -247,11 +238,9 @@ def import_weight_windows(filename: str) -> pv.MultiBlock:
                 pv_mesh.cell_data["upper ww bounds"] = current_upper_bounds.flatten(order='F')
 
             else:
-                logger.info(
-                    f"Skipping weight windows for an unsupported mesh type: "
-                    f"{type(ww.mesh).__name__}."
-                )
-                continue
+                msg = "Skipping weight windows for an unsupported mesh type:" \
+                      f" {type(ww.mesh).__name__}."
+                raise UserWarning(msg)
 
             # Add the energy bin as scalar field data
             pv_mesh.add_field_data(ww.energy_bounds[j:j+2], "energy bin")
