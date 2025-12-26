@@ -1,4 +1,6 @@
 # Stellarvista
+[![Ruff Format](https://github.com/Thea-Energy/stellarvista/actions//workflows/code-quality.yml/badge.svg)](https://github.com/Thea-Energy/stellarvista/actions/workflows/code-quality.yml)
+
 A Python package for DAGMC model inspection, tally visualization, and more for OpenMC with [PyVista](https://docs.pyvista.org/).
 
 Stellvista allows for in-memory model inspection and tally visualization in Jupyter.

@@ -1,4 +1,4 @@
-name: Code Quality Checks
+name: Ruff Style Check
 
 on:
   push:
