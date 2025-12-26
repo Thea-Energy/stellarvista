@@ -5,15 +5,12 @@ version = "0.0.1"
 
 readme = "README.md"
 requires-python = ">=3.12.0"
-maintainers = [
+authors = [
     {name = "Sam Pasmann", email = "sam.pasmann@thea.energy"},
 ]
 
-authors = [
-    {name = "Sam Pasmann"},
-]
-
-keywords = ["stellarator", "tokamak", "fusion", "reactor", "cad", "model", "dagmc", "geometry", "visualization"]
+keywords = ["stellarator", "tokamak", "fusion", "openmc", "cad",
+            "model", "dagmc", "visualization"]
 license = {file="LICENSE.md"}
 classifiers = [
        "Development Status :: 3 - Alpha",
@@ -29,12 +26,14 @@ classifiers = [
        "Programming Language :: Python :: 3.11",
 ]
 
+# TODO: add PyMOAB once on PyPI
 dependencies = [
     "pydagmc",
     "pyvista[all]",
     "pandas",
     "numpy",
     "openmc",
+    "setuptools==80.8.0",
 ]
 
 [build-system]

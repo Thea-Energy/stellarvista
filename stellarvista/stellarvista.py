@@ -36,24 +36,26 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
 
         # Get the points and connectivity for the triangles in this volume
         triangle_connectivity, triangle_points = volume.get_triangle_conn_and_coords()
-        
+
         # PyDAGMC's triangle_conn gives the indices of each face.
         # This is in a format [[a,b,c], [d,e,f], ...]
         # We need to convert this to PyVista's specific format
         # which is padded with the number of indices per face
-        # ex. [3, a, b, c, 3, d, e, f, ...] 
+        # ex. [3, a, b, c, 3, d, e, f, ...]
         n_triangles = triangle_connectivity.shape[0]
         num_points_per_face = np.full((n_triangles, 1), 3, dtype=np.int64)
         # faces_array_2d is a 2D array like [[3, a, b, c], [3, d, e, f], ...]
-        faces_array_2d = np.hstack((num_points_per_face, triangle_connectivity), dtype=np.int64)
+        faces_array_2d = np.hstack(
+            (num_points_per_face, triangle_connectivity), dtype=np.int64
+        )
         faces = faces_array_2d.flatten()
 
         # Create the PyVista PolyData object for this volume
         if len(triangle_points) > 0 and len(faces) > 0:
-            mesh = pv.PolyData(triangle_points, faces)            
+            mesh = pv.PolyData(triangle_points, faces)
             material_names.append(volume.material)
             # mesh.add_field_data(vol_id, "DAGMC Volume ID")
-            mesh.cell_data['DAGMC volume id'] = vol_id
+            mesh.cell_data["DAGMC volume id"] = vol_id
             all_volume_meshes.append(mesh)
         else:
             msg = f"  -> Volum ID: {vol_id}, has no triangles. Skipping."
@@ -89,15 +91,15 @@ def add_material_tally_data(
     """
     mat_ids = [mat.id for mat in materials]
     mat_names = [mat.name for mat in materials]
-    mat_id_map = {n:id for (n,id) in zip(mat_names, mat_ids)}
+    mat_id_map = {n: id for (n, id) in zip(mat_names, mat_ids)}
 
     # Check that the material IDs present in the dataframe are also in the materials
-    for id in tally_df['material']:
+    for id in tally_df["material"]:
         assert id in mat_ids
 
     for block in mesh:
         # Check if material id exists in tally data, if not we issue a warning and continue.
-        mat_id = mat_id_map[block['material name']]
+        mat_id = mat_id_map[block["material name"]]
         if mat_id not in tally_df["material"].to_list():
             msg = f"Material ID {mat_id} not present in tally dataframe."
             raise UserWarning(msg)
@@ -116,7 +118,9 @@ def add_material_tally_data(
     return mesh
 
 
-def _openmc_regularmesh_to_pv_structured_grid(openmc_mesh: openmc.RegularMesh) -> pv.StructuredGrid:
+def _openmc_regularmesh_to_pv_structured_grid(
+    openmc_mesh: openmc.RegularMesh,
+) -> pv.StructuredGrid:
     # copy grid data directly
     pv_mesh = pv.StructuredGrid(
         openmc_mesh.vertices[:, :, :, 0],
@@ -147,7 +151,9 @@ def convert_regular_mesh_tally(
     return pv_mesh
 
 
-def import_unstructured_mesh_tally(statepoint_file: str, tally_name: str) -> pv.UnstructuredGrid:
+def import_unstructured_mesh_tally(
+    statepoint_file: str, tally_name: str
+) -> pv.UnstructuredGrid:
     """Loads unstructured mesh tally data and converts it to a PyVista UnstructuredGrid.
 
     This function reads an OpenMC statepoint file, extracts data for a
@@ -165,9 +171,9 @@ def import_unstructured_mesh_tally(statepoint_file: str, tally_name: str) -> pv.
     """
     # Open the statepoint file
     sp = openmc.StatePoint(statepoint_file)
-    
+
     tally = sp.get_tally(name=tally_name)
-    
+
     mesh = tally.find_filter(openmc.MeshFilter).mesh
 
     # Initialize a dictionary to hold all the results
@@ -175,7 +181,7 @@ def import_unstructured_mesh_tally(statepoint_file: str, tally_name: str) -> pv.
     scores = tally.scores
 
     # List the value types we want to retrieve (all)
-    value_types = ['mean', 'std_dev', 'rel_err', 'sum', 'sum_sq']
+    value_types = ["mean", "std_dev", "rel_err", "sum", "sum_sq"]
 
     # Get the raw tally data for the specific score and value type
     for s in scores:
@@ -227,23 +233,29 @@ def import_weight_windows(filename: str) -> pv.MultiBlock:
         for j in range(ww.num_energy_bins):
             # Extract data for the current energy bin
             # The data arrays are shaped (num_elements, num_energy_bins)
-            current_lower_bounds = ww.lower_ww_bounds[:,:,:,j]
-            current_upper_bounds = ww.upper_ww_bounds[:,:,:,j]
+            current_lower_bounds = ww.lower_ww_bounds[:, :, :, j]
+            current_upper_bounds = ww.upper_ww_bounds[:, :, :, j]
 
             if isinstance(ww.mesh, openmc.RegularMesh):
                 # Create a PyVista StructuredGrid from the OpenMC RegularMesh
                 pv_mesh = _openmc_regularmesh_to_pv_structured_grid(ww.mesh)
                 # Reshape and add the data
-                pv_mesh.cell_data["lower ww bounds"] = current_lower_bounds.flatten(order='F')
-                pv_mesh.cell_data["upper ww bounds"] = current_upper_bounds.flatten(order='F')
+                pv_mesh.cell_data["lower ww bounds"] = current_lower_bounds.flatten(
+                    order="F"
+                )
+                pv_mesh.cell_data["upper ww bounds"] = current_upper_bounds.flatten(
+                    order="F"
+                )
 
             else:
-                msg = "Skipping weight windows for an unsupported mesh type:" \
-                      f" {type(ww.mesh).__name__}."
+                msg = (
+                    "Skipping weight windows for an unsupported mesh type:"
+                    f" {type(ww.mesh).__name__}."
+                )
                 raise UserWarning(msg)
 
             # Add the energy bin as scalar field data
-            pv_mesh.add_field_data(ww.energy_bounds[j:j+2], "energy bin")
+            pv_mesh.add_field_data(ww.energy_bounds[j : j + 2], "energy bin")
             # Each mesh in the MultiBlock is named after the energy bin
             ww_multiblock.append(pv_mesh, name=f"energy bin {j}")
             # Add the completed MultiBlock to the main dictionary
@@ -255,7 +267,7 @@ def import_weight_windows(filename: str) -> pv.MultiBlock:
     return pv_mesh
 
 
-def import_particle_tracks(filename:str) -> pv.MultiBlock:
+def import_particle_tracks(filename: str) -> pv.MultiBlock:
     """Loads particle tracks from an OpenMC HDF5 file and converts them into
     a PyVista MultiBlock dataset.
 
@@ -285,62 +297,69 @@ def import_particle_tracks(filename:str) -> pv.MultiBlock:
       - 'cell_id': The geometry cell ID at each state.
       - 'cell_instance': The cell instance at each state.
       - 'material_id': The material ID at each state.
-      - 'particle_type': A mapped integer for the particle's type, 
+      - 'particle_type': A mapped integer for the particle's type,
                         {neutron: 0, photon: 1, electron: 2, positron: 3}.
     """
     tracks = openmc.Tracks(filename)
-    state_names =  ['E', 'time', 'wgt', 'cell_id', 'cell_instance', 'material_id']
-    particle_data = {'state_data': {state:[] for state in state_names},
-                    'current_point_count': 0,
-                    'points': [],
-                    'line_connectivity': [],
-                    'particle_types': [],}
+    state_names = ["E", "time", "wgt", "cell_id", "cell_instance", "material_id"]
+    particle_data = {
+        "state_data": {state: [] for state in state_names},
+        "current_point_count": 0,
+        "points": [],
+        "line_connectivity": [],
+        "particle_types": [],
+    }
 
     multiblock = pv.MultiBlock()
 
     for primary_particle in tracks:
         for track in primary_particle.particle_tracks:
             # Get the points for the current track
-            track_points_structured = track.states['r']
+            track_points_structured = track.states["r"]
             num_track_points = track_points_structured.shape[0]
-            
+
             # Convert the structured array to a standard NumPy array for PyVista
             track_points = np.empty((num_track_points, 3), dtype=np.float64)
-            track_points[:, 0] = track_points_structured['x']
-            track_points[:, 1] = track_points_structured['y']
-            track_points[:, 2] = track_points_structured['z']
+            track_points[:, 0] = track_points_structured["x"]
+            track_points[:, 1] = track_points_structured["y"]
+            track_points[:, 2] = track_points_structured["z"]
 
             # Append to the global list of points
-            particle_data['points'].append(track_points)
-            
+            particle_data["points"].append(track_points)
+
             # Build the line connectivity
-            particle_data['line_connectivity'].append(num_track_points)
-            particle_data['line_connectivity'].extend(range(particle_data['current_point_count'],
-                                                            particle_data['current_point_count']
-                                                            + num_track_points))
-            
+            particle_data["line_connectivity"].append(num_track_points)
+            particle_data["line_connectivity"].extend(
+                range(
+                    particle_data["current_point_count"],
+                    particle_data["current_point_count"] + num_track_points,
+                )
+            )
+
             # Store metadata for each point
-            particle_data['particle_types'].extend([track.particle] * num_track_points)
+            particle_data["particle_types"].extend([track.particle] * num_track_points)
             for s in state_names:
-                particle_data['state_data'][s].extend(track.states[s])
-            
-            particle_data['current_point_count'] += num_track_points
+                particle_data["state_data"][s].extend(track.states[s])
+
+            particle_data["current_point_count"] += num_track_points
 
         # Create the PyVista PolyData object from the points and lines
-        combined_points = np.vstack(particle_data['points'])
-        mesh = pv.PolyData(combined_points, lines=particle_data['line_connectivity'])
+        combined_points = np.vstack(particle_data["points"])
+        mesh = pv.PolyData(combined_points, lines=particle_data["line_connectivity"])
 
         # Convert particle type strings to an integer array
-        unique_particle_types = list(set(particle_data['particle_types']))
+        unique_particle_types = list(set(particle_data["particle_types"]))
         particle_map = {name: i for i, name in enumerate(unique_particle_types)}
-        mapped_particle_types = np.array([particle_map[p] for p in particle_data['particle_types']])
-        mesh.point_data['particle_type'] = mapped_particle_types
+        mapped_particle_types = np.array(
+            [particle_map[p] for p in particle_data["particle_types"]]
+        )
+        mesh.point_data["particle_type"] = mapped_particle_types
         # Add a field data array to store the mapping from integer to particle name
         mesh.add_field_data(str(particle_map), "particle_type_map")
 
         # Add scalar data to the mesh
         for s in state_names:
-            mesh.point_data[s] = np.array(particle_data['state_data'][s])
+            mesh.point_data[s] = np.array(particle_data["state_data"][s])
 
         multiblock.append(mesh)
 
@@ -373,10 +392,10 @@ def import_lost_particles(particle_files: list[str]):
     particles = [openmc.Particle(f) for f in particle_files]
     xyz = [p.xyz for p in particles]
     mesh = pv.PolyData(xyz)
-    mesh.point_data['weight'] = [p.weight for p in particles]
-    mesh.point_data['energy'] = [p.energy for p in particles]
-    mesh.point_data['type'] = [p.type for p in particles]
-    mesh.point_data['id'] = [p.id for p in particles]
+    mesh.point_data["weight"] = [p.weight for p in particles]
+    mesh.point_data["energy"] = [p.energy for p in particles]
+    mesh.point_data["type"] = [p.type for p in particles]
+    mesh.point_data["id"] = [p.id for p in particles]
 
     return mesh
 
@@ -384,29 +403,31 @@ def import_lost_particles(particle_files: list[str]):
 def convert_point_source(source: list[openmc.IndependentSource]) -> pv.PolyData:
     """Extracts OpenMC Point source data and converts it into a PyVista PolyData object.
 
-    This function filters a list of OpenMC sources to select only those using 
-    a Point spatial distribution. It then creates a PyVista point cloud 
-    (PolyData) where each point represents a source location, with metadata 
+    This function filters a list of OpenMC sources to select only those using
+    a Point spatial distribution. It then creates a PyVista point cloud
+    (PolyData) where each point represents a source location, with metadata
     such as source strength attached.
 
     Args:
       source: A list of openmc.IndependentSource objects.
 
     Returns:
-      A pyvista.PolyData object containing the point source locations and 
+      A pyvista.PolyData object containing the point source locations and
       associated data:
       - 'strength': The source strength assigned to each point.
 
     Raises:
-      ValueError: If no sources with an 'openmc.stats.Point' spatial 
+      ValueError: If no sources with an 'openmc.stats.Point' spatial
         distribution are found in the provided list.
     """
-    point_sources  = np.array([s for s in source if isinstance(s.space, openmc.stats.Point)])
+    point_sources = np.array(
+        [s for s in source if isinstance(s.space, openmc.stats.Point)]
+    )
     if len(point_sources) == 0:
         raise ValueError("No point sources found in source.")
-    
+
     points_xyz = np.array([s.space.xyz for s in point_sources])
     point_cloud = pv.PolyData(points_xyz)
-    point_cloud['strength'] = [s.strength for s in point_sources]
-    
+    point_cloud["strength"] = [s.strength for s in point_sources]
+
     return point_cloud
