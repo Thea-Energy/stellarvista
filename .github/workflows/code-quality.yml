@@ -1,0 +1,33 @@
+name: Code Quality Checks
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  code_quality:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install ruff
+
+      - name: Check code formatting with Black
+        run: ruff format --diff .
+
+      - name: Run static analysis with Ruff
+        run: ruff check ./stellarvista/. --output-format=github .
