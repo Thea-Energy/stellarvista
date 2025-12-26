@@ -61,9 +61,8 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
             msg = f"  -> Volum ID: {vol_id}, has no triangles. Skipping."
             raise UserWarning(msg)
 
-    # Create MultiBlock
+    # Create MultiBlock and set each block name as the material name
     multiblock_mesh = pv.MultiBlock(all_volume_meshes)
-    # Set each block name as the material name
     for i in range(len(all_volume_meshes)):
         multiblock_mesh.set_block_name(i, material_names[i])
         all_volume_meshes[i].add_field_data(material_names[i], "material name")
@@ -191,10 +190,8 @@ def import_unstructured_mesh_tally(
             score_data_dict[v] = values
         tally_data[s] = score_data_dict
 
-    # Import unstructured mesh
+    # Import unstructured mesh and add score data
     pv_mesh = pv.read(mesh.filename)
-
-    # Add the score data to the mesh
     for s in scores:
         for v in value_types:
             scalar_data = tally_data[s][v]

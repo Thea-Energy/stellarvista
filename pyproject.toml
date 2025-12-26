@@ -1,30 +1,16 @@
 [project]
 name = "stellarvista"
-description = "3D visualizations for OpenMC"
+description = "3D visualizations for DAGMC & OpenMC"
 version = "0.0.1"
-
 readme = "README.md"
 requires-python = ">=3.12.0"
 authors = [
-    {name = "Sam Pasmann", email = "sam.pasmann@thea.energy"},
+    {name = "Sam Pasmann"},
 ]
 
 keywords = ["stellarator", "tokamak", "fusion", "openmc", "cad",
             "model", "dagmc", "visualization"]
 license = {file="LICENSE.md"}
-classifiers = [
-       "Development Status :: 3 - Alpha",
-       "Intended Audience :: Science/Research",
-       "Intended Audience :: Developers",
-       "License :: OSI Approved :: MIT License",
-       "Natural Language :: English",
-       "Operating System :: OS Independent",
-       "Topic :: Scientific/Engineering :: Physics",
-       "Topic :: Scientific/Engineering",
-       "Topic :: Scientific/Engineering :: Human Machine Interfaces",
-       "Programming Language :: Python :: 3 :: Only",
-       "Programming Language :: Python :: 3.11",
-]
 
 # TODO: add PyMOAB once on PyPI
 dependencies = [
@@ -36,11 +22,19 @@ dependencies = [
     "setuptools==80.8.0",
 ]
 
-[build-system]
-requires = ["setuptools", "wheel"]
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.12.8",
+]
 
-[tool.setuptools]
-packages = ["stellarvista"]
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+extend-select = [
+  "D103",  # undocumented public function
+]
+pydocstyle.convention = "google"
 
 [tool.pyright]
 include = ["stellarvista"]
