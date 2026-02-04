@@ -12,9 +12,8 @@ keywords = ["stellarator", "tokamak", "fusion", "openmc", "cad",
             "model", "dagmc", "visualization"]
 license = {file="LICENSE.md"}
 
-# TODO: add PyMOAB once on PyPI
 dependencies = [
-    "pydagmc",
+    "dagmc-h5m-file-inspector",
     "pyvista[all]",
     "pandas",
     "numpy",

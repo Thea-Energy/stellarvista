@@ -1,5 +1,5 @@
 import openmc
-import pydagmc
+import dagmc_h5m_file_inspector as di
 
 import numpy as np
 import pandas as pd
@@ -23,21 +23,21 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
         A pyvista.MultiBlock object where each block represents a volume
         and contains 'material_name' and 'DAGMC Volume ID' cell data.
     """
-    model = pydagmc.Model(filename)
+    # Get triangle data and material mapping from the DAGMC file
+    triangle_data = di.get_triangle_conn_and_coords_by_volume(filename)
+    vol_mat_mapping = di.get_volumes_and_materials_from_h5m(filename)
 
     all_volume_meshes = []
     material_names = []
 
-    # Iterate through each volume in the pydagmc model
-    volume_ids = model.volumes_by_id.keys()
+    # Iterate through each volume
+    volume_ids = sorted(triangle_data.keys())
 
-    for vol_id in list(volume_ids):
-        volume = model.volumes_by_id[vol_id]
-
+    for vol_id in volume_ids:
         # Get the points and connectivity for the triangles in this volume
-        triangle_connectivity, triangle_points = volume.get_triangle_conn_and_coords()
+        triangle_connectivity, triangle_points = triangle_data[vol_id]
 
-        # PyDAGMC's triangle_conn gives the indices of each face.
+        # The triangle_conn gives the indices of each face.
         # This is in a format [[a,b,c], [d,e,f], ...]
         # We need to convert this to PyVista's specific format
         # which is padded with the number of indices per face
@@ -53,12 +53,11 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
         # Create the PyVista PolyData object for this volume
         if len(triangle_points) > 0 and len(faces) > 0:
             mesh = pv.PolyData(triangle_points, faces)
-            material_names.append(volume.material)
-            # mesh.add_field_data(vol_id, "DAGMC Volume ID")
+            material_names.append(vol_mat_mapping[vol_id])
             mesh.cell_data["DAGMC volume id"] = vol_id
             all_volume_meshes.append(mesh)
         else:
-            msg = f"  -> Volum ID: {vol_id}, has no triangles. Skipping."
+            msg = f"  -> Volume ID: {vol_id}, has no triangles. Skipping."
             raise UserWarning(msg)
 
     # Create MultiBlock and set each block name as the material name
