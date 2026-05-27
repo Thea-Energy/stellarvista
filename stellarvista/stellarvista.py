@@ -1,4 +1,5 @@
 import openmc
+import warnings
 import dagmc_h5m_file_inspector as di
 
 import numpy as np
@@ -25,7 +26,7 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
     """
     # Get triangle data and material mapping from the DAGMC file
     triangle_data = di.get_triangle_conn_and_coords_by_volume(filename)
-    vol_mat_mapping = di.get_volumes_and_materials_from_h5m(filename)
+    vol_mat_mapping = di.get_volumes_and_materials(filename)
 
     all_volume_meshes = []
     material_names = []
@@ -53,7 +54,13 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
         # Create the PyVista PolyData object for this volume
         if len(triangle_points) > 0 and len(faces) > 0:
             mesh = pv.PolyData(triangle_points, faces)
-            material_names.append(vol_mat_mapping[vol_id])
+            try:
+                material_names.append(vol_mat_mapping[vol_id])
+            except:
+                material_names.append("void")
+                msg = f"Volume ID {vol_id} not found in volume-to-material map. Assigning volume to 'void' material."
+                warnings.warn(msg, UserWarning)
+
             mesh.cell_data["DAGMC volume id"] = vol_id
             all_volume_meshes.append(mesh)
         else:
@@ -219,7 +226,7 @@ def import_weight_windows(filename: str) -> pv.MultiBlock:
         an energy bin and contains 'Lower WW Bounds' and
         'Upper WW Bounds' as cell data.
     """
-    ww_list = openmc.hdf5_to_wws(filename)
+    ww_list = openmc.WeightWindowsList.from_hdf5(filename)
     all_ww_multiblocks = {}
 
     for ww in ww_list:
