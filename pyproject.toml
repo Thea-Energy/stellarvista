@@ -18,7 +18,6 @@ dependencies = [
     "pandas<3.0", # waiting for version of OpenMC with PR 3743 to be released
     "numpy",
     "openmc>=0.15.3",
-    "setuptools==80.8.0",
     "vtk",
 ]
 
