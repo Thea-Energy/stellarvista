@@ -56,7 +56,7 @@ def import_dagmc(filename: str) -> pv.MultiBlock:
             mesh = pv.PolyData(triangle_points, faces)
             try:
                 material_names.append(vol_mat_mapping[vol_id])
-            except:
+            except KeyError:
                 material_names.append("void")
                 msg = f"Volume ID {vol_id} not found in volume-to-material map. Assigning volume to 'void' material."
                 warnings.warn(msg, UserWarning)
