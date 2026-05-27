@@ -14,10 +14,21 @@ For help running PyVista in Jupyter Notebooks, see [Using PyVista in Jupyter](ht
 * Stellarvista requires an [installation of OpenMC](https://docs.openmc.org/en/stable/quickinstall.html).
 * With OpenMC installed, clone the repo and install with:
      
-     `pip install git+https://github.com/Thea-Energy/stellarvista
-`
+     `pip install git+https://github.com/Thea-Energy/stellarvista`
+
+* Alternatively, you can install stellarvista in a conda environment with the `environment.yml` file.
+
+    `conda env create -f environment.yml`
+
+    or in an existing environment with
+
+    `conda env update -name <env_name> -f environment.yml`
+
 * For familiarizing yourself with PyVista, see their [examples](https://docs.pyvista.org/examples/index.html) particularly those on [plotting](https://docs.pyvista.org/examples/02-plot/).
 * Stellarvista-specific example notebookds are included [here](https://github.com/Thea-Energy/stellarvista/tree/main/examples).
+
+NOTE: if using stellarvista without access to a GPU, like on the login node of an HPC machine, `vtk` must be built with `osmesa`.
+The `vtk-osmesa` wheels are included in `vtk>=9.4`. 
 
 ## Visualization Support
 * DAGMC geometry and mesh
