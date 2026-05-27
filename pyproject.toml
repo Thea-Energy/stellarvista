@@ -12,14 +12,15 @@ keywords = ["stellarator", "tokamak", "fusion", "openmc", "cad",
             "model", "dagmc", "visualization"]
 license = {file="LICENSE.md"}
 
-# TODO: add PyMOAB once on PyPI
 dependencies = [
-    "pydagmc",
     "pyvista[all]",
-    "pandas",
+    "dagmc-h5m-file-inspector",
+    "pandas<3.0", # waiting for version of OpenMC with PR 3743 to be released
     "numpy",
-    "openmc",
+    "openmc>=0.15.3",
     "setuptools==80.8.0",
+    "vtk>=9.4" # vtk is automatically packaged with osemsa starting with v9.4
+    # osmesa is required to run when no GPUs are present (like on an HPC login node).
 ]
 
 [project.optional-dependencies]

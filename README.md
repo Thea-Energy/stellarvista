@@ -11,8 +11,10 @@ For help running PyVista in Jupyter Notebooks, see [Using PyVista in Jupyter](ht
 </p>
 
 ## Getting Started
-* Stellarvista requires an [installation of OpenMC](https://docs.openmc.org/en/stable/quickinstall.html) and PyMOAB.
-* With OpenMC and PyMOAB installed, copy the stellarvista source code to your local library and install with `pip install git+https://github.com/Thea-Energy/stellarvista
+* Stellarvista requires an [installation of OpenMC](https://docs.openmc.org/en/stable/quickinstall.html).
+* With OpenMC installed, clone the repo and install with:
+     
+     `pip install git+https://github.com/Thea-Energy/stellarvista
 `
 * For familiarizing yourself with PyVista, see their [examples](https://docs.pyvista.org/examples/index.html) particularly those on [plotting](https://docs.pyvista.org/examples/02-plot/).
 * Stellarvista-specific example notebookds are included [here](https://github.com/Thea-Energy/stellarvista/tree/main/examples).
