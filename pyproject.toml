@@ -19,8 +19,7 @@ dependencies = [
     "numpy",
     "openmc>=0.15.3",
     "setuptools==80.8.0",
-    "vtk>=9.4" # vtk is automatically packaged with osemsa starting with v9.4
-    # osmesa is required to run when no GPUs are present (like on an HPC login node).
+    "vtk",
 ]
 
 [project.optional-dependencies]
