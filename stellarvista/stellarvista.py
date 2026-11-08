@@ -277,9 +277,9 @@ def import_particle_tracks(filename: str) -> pv.MultiBlock:
     The function reads a 'tracks.h5' file, where each particle track is
     represented by its states. It extracts the spatial points and
     associated metadata for each track and creates a PyVista PolyData
-    object for each primary particle. These PolyData objects are then
-    aggregated into a single MultiBlock dataset. The MultiBlock's blocks
-    are named with the unique identifier of the primary particle.
+    object for each primary particle and its secondaries, without including
+    histories from other primary particles. These PolyData objects are aggregated
+    into a single MultiBlock dataset, with blocks named by primary identifier.
 
     The PolyData objects contain a continuous series of lines representing
     the particle trajectories, with all metadata (energy, time, weight,
@@ -305,17 +305,17 @@ def import_particle_tracks(filename: str) -> pv.MultiBlock:
     """
     tracks = openmc.Tracks(filename)
     state_names = ["E", "time", "wgt", "cell_id", "cell_instance", "material_id"]
-    particle_data = {
-        "state_data": {state: [] for state in state_names},
-        "current_point_count": 0,
-        "points": [],
-        "line_connectivity": [],
-        "particle_types": [],
-    }
 
     multiblock = pv.MultiBlock()
 
     for primary_particle in tracks:
+        particle_data = {
+            "state_data": {state: [] for state in state_names},
+            "current_point_count": 0,
+            "points": [],
+            "line_connectivity": [],
+            "particle_types": [],
+        }
         for track in primary_particle.particle_tracks:
             # Get the points for the current track
             track_points_structured = track.states["r"]
